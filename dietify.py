@@ -3,8 +3,11 @@
 
 import os
 import sys
+import sqlite3
+from typing import List, Dict, Any, Optional
 
-# 1. Monkeypatch collections for experta compatibility in Python 3.10+
+# Intentar auto-ejecutar el script con el entorno virtual si no está importado experta
+# 1. Monkeypatch collections para compatibilidad de experta en Python 3.10+
 import collections
 import collections.abc
 collections.Mapping = collections.abc.Mapping # type: ignore
@@ -15,12 +18,15 @@ collections.Iterable = collections.abc.Iterable # type: ignore
 collections.MutableSet = collections.abc.MutableSet # type: ignore
 collections.Callable = collections.abc.Callable # type: ignore
 
-# Auto-re-execute using the virtual environment python if experta is not found
 try:
     import experta
 except ImportError:
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    venv_python = os.path.join(script_dir, "venv", "bin", "python")
+    if sys.platform == "win32":
+        venv_python = os.path.join(script_dir, "venv", "Scripts", "python.exe")
+    else:
+        venv_python = os.path.join(script_dir, "venv", "bin", "python")
+        
     if os.path.exists(venv_python) and sys.executable != venv_python:
         os.execv(venv_python, [venv_python] + sys.argv)
     else:
@@ -31,375 +37,17 @@ except ImportError:
         print("  pip install -r requirements.txt")
         sys.exit(1)
 
-import sqlite3
-import random
-import json
-from typing import List, Dict, Any, Optional
-from experta import KnowledgeEngine, Rule, Fact, MATCH, AS
-
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dietify.db")
-
-# ==========================================
-# 2. BASE DE DATOS Y PERSISTENCIA (SQLite3)
-# ==========================================
-
-def get_connection():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON;")
-    return conn
-
-def init_db():
-    conn = get_connection()
-    cursor = conn.cursor()
-    
-    # Tabla de inventario
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS inventory (
-        name TEXT PRIMARY KEY,
-        quantity REAL DEFAULT 0,
-        unit TEXT DEFAULT ''
-    );
-    """)
-    
-    # Tabla de recetas
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS recipes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL UNIQUE,
-        instructions TEXT NOT NULL,
-        meal_type TEXT NOT NULL, -- breakfast, lunch, dinner, snack
-        diet_tags TEXT NOT NULL  -- comma-separated tags
-    );
-    """)
-    
-    # Tabla de ingredientes por receta
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS recipe_ingredients (
-        recipe_id INTEGER NOT NULL,
-        ingredient_name TEXT NOT NULL,
-        quantity REAL NOT NULL,
-        unit TEXT NOT NULL,
-        PRIMARY KEY (recipe_id, ingredient_name),
-        FOREIGN KEY (recipe_id) REFERENCES recipes (id) ON DELETE CASCADE
-    );
-    """)
-    
-    conn.commit()
-    seed_recipes(conn)
-    conn.close()
-
-def seed_recipes(conn):
-    cursor = conn.cursor()
-    
-    seed_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seed.json")
-    try:
-        with open(seed_file_path, "r", encoding="utf-8") as f:
-            recipes_data = json.load(f)
-    except FileNotFoundError:
-        print(f"Error: No se encontró el archivo {seed_file_path}")
-        return
-    
-    for r in recipes_data:
-        cursor.execute("SELECT id FROM recipes WHERE name = ?", (r["name"],))
-        row = cursor.fetchone()
-        
-        if not row:
-            cursor.execute(
-                "INSERT INTO recipes (name, instructions, meal_type, diet_tags) VALUES (?, ?, ?, ?)",
-                (r["name"], r["instructions"], r["meal_type"], r["diet_tags"])
-            )
-            recipe_id = cursor.lastrowid
-            for ing_name, qty, unit in r["ingredients"]:
-                cursor.execute(
-                    "INSERT INTO recipe_ingredients (recipe_id, ingredient_name, quantity, unit) VALUES (?, ?, ?, ?)",
-                    (recipe_id, ing_name.lower().strip(), qty, unit)
-                )
-            
-    conn.commit()
-
-# --- CRUD HELPERS FOR CLI ---
-
-def db_get_inventory() -> List[Dict[str, Any]]:
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT name, quantity, unit FROM inventory ORDER BY name ASC")
-    rows = cursor.fetchall()
-    conn.close()
-    return [dict(row) for row in rows]
-
-def db_update_inventory(name: str, quantity: float, unit: str):
-    conn = get_connection()
-    cursor = conn.cursor()
-    name_lower = name.strip().lower()
-    
-    cursor.execute("SELECT name FROM inventory WHERE name = ?", (name_lower,))
-    if cursor.fetchone():
-        cursor.execute("UPDATE inventory SET quantity = ?, unit = ? WHERE name = ?", (quantity, unit, name_lower))
-    else:
-        cursor.execute("INSERT INTO inventory (name, quantity, unit) VALUES (?, ?, ?)", (name_lower, quantity, unit))
-    conn.commit()
-    conn.close()
-
-def db_delete_inventory_item(name: str) -> bool:
-    conn = get_connection()
-    cursor = conn.cursor()
-    name_lower = name.strip().lower()
-    cursor.execute("SELECT name FROM inventory WHERE name = ?", (name_lower,))
-    row = cursor.fetchone()
-    if not row:
-        conn.close()
-        return False
-    cursor.execute("DELETE FROM inventory WHERE name = ?", (name_lower,))
-    conn.commit()
-    conn.close()
-    return True
-
-def db_clear_inventory():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM inventory")
-    conn.commit()
-    conn.close()
-
-def db_get_recipes() -> List[Dict[str, Any]]:
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT id, name, instructions, meal_type, diet_tags FROM recipes ORDER BY name ASC")
-    recipe_rows = cursor.fetchall()
-    
-    recipes = []
-    for r_row in recipe_rows:
-        recipe_id = r_row["id"]
-        cursor.execute("SELECT ingredient_name, quantity, unit FROM recipe_ingredients WHERE recipe_id = ?", (recipe_id,))
-        ing_rows = cursor.fetchall()
-        ingredients = [dict(ing) for ing in ing_rows]
-        tags = [t.strip() for t in r_row["diet_tags"].split(",") if t.strip()]
-        
-        recipes.append({
-            "id": r_row["id"],
-            "name": r_row["name"],
-            "instructions": r_row["instructions"],
-            "meal_type": r_row["meal_type"],
-            "diet_tags": tags,
-            "ingredients": ingredients
-        })
-    conn.close()
-    return recipes
-
-def db_create_recipe(name: str, instructions: str, meal_type: str, diet_tags: List[str], ingredients: List[Dict[str, Any]]):
-    conn = get_connection()
-    cursor = conn.cursor()
-    tags_str = ",".join([t.strip().lower() for t in diet_tags if t.strip()])
-    
-    cursor.execute(
-        "INSERT INTO recipes (name, instructions, meal_type, diet_tags) VALUES (?, ?, ?, ?)",
-        (name, instructions, meal_type.lower().strip(), tags_str)
-    )
-    recipe_id = cursor.lastrowid
-    
-    for ing in ingredients:
-        cursor.execute(
-            "INSERT INTO recipe_ingredients (recipe_id, ingredient_name, quantity, unit) VALUES (?, ?, ?, ?)",
-            (recipe_id, ing["name"].strip().lower(), ing["quantity"], ing["unit"].strip())
-        )
-    conn.commit()
-    conn.close()
-
-# ==========================================
-# 3. MOTOR DEL SISTEMA EXPERTO (Experta)
-# ==========================================
-
-class RecipeFact(Fact):
-    # fields: id, name, meal_type, ingredients (frozenset), tags (frozenset)
-    pass
-
-class DietProfile(Fact):
-    # fields: diet_type, target, constraints (frozenset)
-    pass
-
-class AvailableSet(Fact):
-    # fields: names (frozenset)
-    pass
-
-class EligibleRecipe(Fact):
-    # fields: id, name, meal_type, status ("exact" or "near"), missing_ingredients (frozenset)
-    pass
-
-class DietRecommenderEngine(KnowledgeEngine):
-    
-    # A. Dieta Deportes
-    @Rule(
-        DietProfile(diet_type="sports"),
-        AvailableSet(names=MATCH.avail),
-        RecipeFact(id=MATCH.id, name=MATCH.name, meal_type=MATCH.mtype, ingredients=MATCH.reqs, tags=MATCH.tags)
-    )
-    def match_sports_recipe(self, id, name, mtype, reqs, tags, avail):
-        if "sports" in tags or "high-protein" in tags or "high-carb" in tags:
-            missing = reqs - avail
-            if len(missing) == 0:
-                self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="exact", missing_ingredients=frozenset()))
-            elif len(missing) <= 2:
-                self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="near", missing_ingredients=frozenset(missing)))
-
-    # B. Dieta Control Peso
-    @Rule(
-        DietProfile(diet_type="weight"),
-        AvailableSet(names=MATCH.avail),
-        RecipeFact(id=MATCH.id, name=MATCH.name, meal_type=MATCH.mtype, ingredients=MATCH.reqs, tags=MATCH.tags)
-    )
-    def match_weight_recipe(self, id, name, mtype, reqs, tags, avail):
-        if "weight" in tags or "low-calorie" in tags or "low-carb" in tags or "high-fiber" in tags:
-            missing = reqs - avail
-            if len(missing) == 0:
-                self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="exact", missing_ingredients=frozenset()))
-            elif len(missing) <= 2:
-                self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="near", missing_ingredients=frozenset(missing)))
-
-    # C. Dieta Médica
-    @Rule(
-        DietProfile(diet_type="medical", constraints=MATCH.constraints),
-        AvailableSet(names=MATCH.avail),
-        RecipeFact(id=MATCH.id, name=MATCH.name, meal_type=MATCH.mtype, ingredients=MATCH.reqs, tags=MATCH.tags)
-    )
-    def match_medical_recipe(self, id, name, mtype, reqs, tags, avail, constraints):
-        is_compatible = "medical" in tags or any(c in tags for c in constraints)
-        excluded = False
-        
-        # Diabetes: no azúcar ni miel
-        if any(c in constraints for c in ["diabetic", "diabetic-friendly", "diabetes", "low-sugar"]):
-            if any(term in reqs for term in ["miel", "azúcar", "azucar"]):
-                excluded = True
-                
-        # Hipertensión: debe ser bajo en sodio
-        if any(c in constraints for c in ["hypertensive", "low-sodium", "hipertension"]):
-            if "low-sodium" not in tags and "easy-digest" not in tags:
-                excluded = True
-                
-        # Bajo en grasas (low-fat)
-        if "low-fat" in constraints or "bajo en grasa" in constraints:
-            if any(term in reqs for term in ["mantequilla", "aceite", "aceite de oliva"]):
-                if "low-fat" not in tags:
-                    excluded = True
-
-        if is_compatible and not excluded:
-            missing = reqs - avail
-            if len(missing) == 0:
-                self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="exact", missing_ingredients=frozenset()))
-            elif len(missing) <= 2:
-                self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="near", missing_ingredients=frozenset(missing)))
-
-    # D. Dieta Propia / General
-    @Rule(
-        DietProfile(diet_type="own"),
-        AvailableSet(names=MATCH.avail),
-        RecipeFact(id=MATCH.id, name=MATCH.name, meal_type=MATCH.mtype, ingredients=MATCH.reqs, tags=MATCH.tags)
-    )
-    def match_own_recipe(self, id, name, mtype, reqs, tags, avail):
-        missing = reqs - avail
-        if len(missing) == 0:
-            self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="exact", missing_ingredients=frozenset()))
-        elif len(missing) <= 2:
-            self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="near", missing_ingredients=frozenset(missing)))
-
-# ==========================================
-# 4. LÓGICA DE PLANIFICACIÓN DE MENÚS
-# ==========================================
-
-def run_expert_system(diet_type: str, constraints: List[str], available_ingredients: List[str], all_recipes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    engine = DietRecommenderEngine()
-    engine.reset()
-    
-    avail_set = frozenset([i.lower().strip() for i in available_ingredients])
-    constraints_set = frozenset([c.lower().strip() for c in constraints])
-    
-    engine.declare(DietProfile(diet_type=diet_type.lower().strip(), target="day", constraints=constraints_set))
-    engine.declare(AvailableSet(names=avail_set))
-    
-    for r in all_recipes:
-        req_ingredients = frozenset([ing["ingredient_name"].lower().strip() for ing in r["ingredients"]])
-        tags_set = frozenset([t.lower().strip() for t in r["diet_tags"]])
-        engine.declare(RecipeFact(
-            id=r["id"],
-            name=r["name"],
-            meal_type=r["meal_type"].lower(),
-            ingredients=req_ingredients,
-            tags=tags_set
-        ))
-        
-    engine.run()
-    
-    eligible = []
-    for fact_id, fact in engine.facts.items():
-        if isinstance(fact, EligibleRecipe):
-            original = next((r for r in all_recipes if r["id"] == fact["id"]), None)
-            if original:
-                eligible.append({
-                    "recipe": original,
-                    "status": fact["status"],
-                    "missing_ingredients": list(fact["missing_ingredients"])
-                })
-                
-    eligible.sort(key=lambda x: (0 if x["status"] == "exact" else len(x["missing_ingredients"])))
-    return eligible
-
-def plan_menus(eligible_recipes: List[Dict[str, Any]], target: str, all_recipes: List[Dict[str, Any]]) -> Dict[str, Any]:
-    breakfasts = [r for r in eligible_recipes if r["recipe"]["meal_type"] == "breakfast"]
-    lunches = [r for r in eligible_recipes if r["recipe"]["meal_type"] in ["lunch", "dinner"]]
-    dinners = [r for r in eligible_recipes if r["recipe"]["meal_type"] in ["lunch", "dinner"]]
-    
-    def get_fallbacks(meal_type: str) -> List[Dict[str, Any]]:
-        fallbacks = []
-        for r in all_recipes:
-            if r["meal_type"] == meal_type or (meal_type in ["lunch", "dinner"] and r["meal_type"] in ["lunch", "dinner"]):
-                if not any(el["recipe"]["id"] == r["id"] for el in eligible_recipes):
-                    fallbacks.append({
-                        "recipe": r,
-                        "status": "near",
-                        "missing_ingredients": [ing["ingredient_name"] for ing in r["ingredients"]]
-                    })
-        return fallbacks
-        
-    if not breakfasts:
-        breakfasts = get_fallbacks("breakfast")
-    if not lunches:
-        lunches = get_fallbacks("lunch")
-    if not dinners:
-        dinners = get_fallbacks("dinner")
-
-    def pick_meal(options: List[Dict[str, Any]], used_ids: List[int]) -> Dict[str, Any]:
-        if not options:
-            return None
-        unused = [o for o in options if o["recipe"]["id"] not in used_ids]
-        if unused:
-            chosen = unused[0]
-        else:
-            slice_size = min(3, len(options))
-            chosen = random.choice(options[:slice_size])
-        used_ids.append(chosen["recipe"]["id"])
-        return chosen
-
-    if target == "day":
-        used_ids = []
-        b_meal = pick_meal(breakfasts, used_ids)
-        l_meal = pick_meal(lunches, used_ids)
-        d_meal = pick_meal(dinners, used_ids)
-        return {"day_menu": {"breakfast": b_meal, "lunch": l_meal, "dinner": d_meal}, "week_menu": None}
-    else:
-        week_menu = []
-        used_ids = []
-        for day in range(1, 8):
-            if len(used_ids) > 6:
-                used_ids = used_ids[-3:]
-            b_meal = pick_meal(breakfasts, used_ids)
-            l_meal = pick_meal(lunches, used_ids)
-            d_meal = pick_meal(dinners, used_ids)
-            week_menu.append({"day_number": day, "menu": {"breakfast": b_meal, "lunch": l_meal, "dinner": d_meal}})
-        return {"day_menu": None, "week_menu": week_menu}
-
-# ==========================================
-# 5. INTERFAZ DE CONSOLA INTERACTIVA (CLI)
-# ==========================================
+# Importar funciones desde el módulo modularizado 'core'
+from core.db import (
+    init_db,
+    db_get_inventory,
+    db_update_inventory,
+    db_delete_inventory_item,
+    db_clear_inventory,
+    db_get_recipes,
+    db_create_recipe
+)
+from core.engine import run_expert_system, plan_menus
 
 def print_banner(title: str):
     print("\n" + "="*60)
