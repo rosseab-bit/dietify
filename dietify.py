@@ -33,6 +33,7 @@ except ImportError:
 
 import sqlite3
 import random
+import json
 from typing import List, Dict, Any, Optional
 from experta import KnowledgeEngine, Rule, Fact, MATCH, AS
 
@@ -90,243 +91,30 @@ def init_db():
 
 def seed_recipes(conn):
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM recipes")
-    if cursor.fetchone()[0] > 0:
+    
+    seed_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seed.json")
+    try:
+        with open(seed_file_path, "r", encoding="utf-8") as f:
+            recipes_data = json.load(f)
+    except FileNotFoundError:
+        print(f"Error: No se encontró el archivo {seed_file_path}")
         return
-        
-    recipes_data = [
-        # Desayunos (breakfast)
-        {
-            "name": "Huevos revueltos con tomate",
-            "instructions": "Batir los huevos. En una sartén con un poco de aceite calentar el tomate picado durante 2 minutos. Añadir los huevos batidos y revolver hasta que cuajen al gusto.",
-            "meal_type": "breakfast",
-            "diet_tags": "own,sports,high-protein",
-            "ingredients": [
-                ("huevo", 2, "unidades"),
-                ("tomate", 1, "unidad"),
-                ("aceite", 5, "ml")
-            ]
-        },
-        {
-            "name": "Avena con manzana y canela",
-            "instructions": "Hervir la leche. Agregar la avena y cocinar a fuego lento durante 5 minutos revolviendo constantemente. Servir con manzana picada y una pizca de canela.",
-            "meal_type": "breakfast",
-            "diet_tags": "medical,weight,own,low-sodium,diabetic-friendly,high-fiber",
-            "ingredients": [
-                ("avena", 50, "g"),
-                ("leche", 200, "ml"),
-                ("manzana", 1, "unidad"),
-                ("canela", 2, "g")
-            ]
-        },
-        {
-            "name": "Tostadas con aguacate y huevo",
-            "instructions": "Tostar el pan integral. Machacar el aguacate y untarlo sobre las tostadas. Cocinar el huevo (poché, revuelto o a la plancha) y colocarlo encima del aguacate.",
-            "meal_type": "breakfast",
-            "diet_tags": "own,weight,sports,high-fiber",
-            "ingredients": [
-                ("pan integral", 2, "rebanadas"),
-                ("aguacate", 0.5, "unidad"),
-                ("huevo", 1, "unidad")
-            ]
-        },
-        {
-            "name": "Batido de plátano y avena",
-            "instructions": "Colocar todos los ingredientes en la licuadora. Licuar a velocidad alta hasta obtener una textura suave y homogénea. Servir frío.",
-            "meal_type": "breakfast",
-            "diet_tags": "own,sports,high-carb",
-            "ingredients": [
-                ("plátano", 1, "unidad"),
-                ("avena", 30, "g"),
-                ("leche", 250, "ml"),
-                ("miel", 10, "ml")
-            ]
-        },
-        {
-            "name": "Tortilla de jamón y queso",
-            "instructions": "Batir los huevos. Agregar el jamón y el queso cortados en trozos. Cocinar en una sartén antiadherente a fuego medio hasta que esté cocida por ambos lados.",
-            "meal_type": "breakfast",
-            "diet_tags": "own,high-protein",
-            "ingredients": [
-                ("huevo", 2, "unidades"),
-                ("jamón", 50, "g"),
-                ("queso", 30, "g")
-            ]
-        },
-        # Almuerzos / Cenas (lunch / dinner)
-        {
-            "name": "Pechuga de pollo con arroz y brócoli",
-            "instructions": "Cocinar el arroz en agua hirviendo. Cocinar el brócoli al vapor. Cocinar la pechuga de pollo a la plancha con un poco de aceite de oliva, sal y pimienta. Servir todo junto.",
-            "meal_type": "lunch",
-            "diet_tags": "sports,own,high-protein",
-            "ingredients": [
-                ("pechuga de pollo", 200, "g"),
-                ("arroz", 80, "g"),
-                ("brócoli", 150, "g"),
-                ("aceite de oliva", 10, "ml")
-            ]
-        },
-        {
-            "name": "Ensalada de atún y pasta",
-            "instructions": "Hervir la pasta y dejar enfriar. Mezclar la pasta fría con el atún escurrido, el tomate picado y las espinacas frescas. Aderezar con aceite de oliva.",
-            "meal_type": "lunch",
-            "diet_tags": "sports,own,weight,high-protein",
-            "ingredients": [
-                ("atún en lata", 120, "g"),
-                ("pasta", 80, "g"),
-                ("tomate", 1, "unidad"),
-                ("espinaca", 50, "g"),
-                ("aceite de oliva", 10, "ml")
-            ]
-        },
-        {
-            "name": "Salmón al horno con quinoa y espárragos",
-            "instructions": "Precalentar el horno a 180C. Hornear el salmón condimentado durante 15 minutos. Hervir la quinoa. Cocinar los espárragos a la plancha con unas gotas de limón. Servir.",
-            "meal_type": "dinner",
-            "diet_tags": "medical,weight,own,low-sodium,diabetic-friendly,high-protein",
-            "ingredients": [
-                ("salmón", 150, "g"),
-                ("quinoa", 60, "g"),
-                ("espárragos", 100, "g"),
-                ("limón", 0.5, "unidad")
-            ]
-        },
-        {
-            "name": "Sopa de verduras",
-            "instructions": "Cortar todas las verduras en cubos pequeños. En una olla, rehogar la cebolla en aceite. Añadir el resto de verduras, verter el caldo y cocinar a fuego lento por 20 minutos.",
-            "meal_type": "dinner",
-            "diet_tags": "medical,weight,own,low-sodium,low-calorie,easy-digest",
-            "ingredients": [
-                ("zanahoria", 1, "unidad"),
-                ("calabacín", 1, "unidad"),
-                ("apio", 50, "g"),
-                ("cebolla", 1, "unidad"),
-                ("caldo de verduras", 500, "ml")
-            ]
-        },
-        {
-            "name": "Tofu a la plancha con verduras al vapor",
-            "instructions": "Cortar el tofu en rodajas y dorar en una sartén con salsa de soja. Cocinar el brócoli y la zanahoria en rodajas al vapor hasta que estén tiernos pero firmes. Servir.",
-            "meal_type": "lunch",
-            "diet_tags": "medical,weight,own,diabetic-friendly,low-calorie",
-            "ingredients": [
-                ("tofu", 150, "g"),
-                ("brócoli", 100, "g"),
-                ("zanahoria", 1, "unidad"),
-                ("salsa de soja", 15, "ml")
-            ]
-        },
-        {
-            "name": "Salteado de carne con pimientos",
-            "instructions": "Cortar la carne y los pimientos en tiras finas. Saltear en un wok o sartén grande con aceite caliente. Agregar cebolla y verter la salsa de soja. Cocinar por 5 minutos.",
-            "meal_type": "lunch",
-            "diet_tags": "own,sports,high-protein",
-            "ingredients": [
-                ("carne de res", 150, "g"),
-                ("pimiento rojo", 0.5, "unidad"),
-                ("cebolla", 0.5, "unidad"),
-                ("salsa de soja", 10, "ml"),
-                ("aceite", 5, "ml")
-            ]
-        },
-        {
-            "name": "Pasta con tomate y albahaca",
-            "instructions": "Hervir la pasta. Calentar la salsa de tomate en una sartén, añadir la pasta escurrida y hojas frescas de albahaca. Espolvorear queso parmesano antes de servir.",
-            "meal_type": "lunch",
-            "diet_tags": "own,high-carb",
-            "ingredients": [
-                ("pasta", 100, "g"),
-                ("salsa de tomate", 150, "ml"),
-                ("albahaca fresca", 5, "g"),
-                ("queso parmesano", 15, "g")
-            ]
-        },
-        {
-            "name": "Ensalada griega con pollo",
-            "instructions": "Cocinar la pechuga de pollo a la plancha y cortarla en cubos. En un bol, mezclar el pepino, tomate, aceitunas y queso feta. Añadir el pollo y aliñar con aceite de oliva.",
-            "diet_tags": "weight,medical,sports,own,low-carb,high-protein",
-            "meal_type": "lunch",
-            "ingredients": [
-                ("pechuga de pollo", 150, "g"),
-                ("pepino", 1, "unidad"),
-                ("tomate", 1, "unidad"),
-                ("queso feta", 30, "g"),
-                ("aceitunas", 20, "g"),
-                ("aceite de oliva", 10, "ml")
-            ]
-        },
-        {
-            "name": "Merluza a la plancha con puré de patata",
-            "instructions": "Hervir la patata pelada. Aplastarla añadiendo leche y mantequilla hasta conseguir la textura de puré. Cocinar el filete de merluza en una plancha con gotas de aceite y servir.",
-            "meal_type": "dinner",
-            "diet_tags": "medical,own,easy-digest,low-fat",
-            "ingredients": [
-                ("filete de merluza", 150, "g"),
-                ("patata", 150, "g"),
-                ("leche", 30, "ml"),
-                ("mantequilla", 10, "g")
-            ]
-        },
-        {
-            "name": "Revuelto de espinacas y champiñones",
-            "instructions": "Saltear el ajo picado y los champiñones rebanados. Agregar las espinacas hasta que reduzcan. Añadir los huevos batidos y mezclar suavemente hasta que cuajen.",
-            "meal_type": "dinner",
-            "diet_tags": "weight,medical,own,low-calorie,low-carb,diabetic-friendly",
-            "ingredients": [
-                ("espinaca", 100, "g"),
-                ("champiñones", 100, "g"),
-                ("huevo", 2, "unidades"),
-                ("ajo", 1, "diente")
-            ]
-        },
-        {
-            "name": "Crema de calabaza",
-            "instructions": "Cocinar la calabaza, la patata y la cebolla troceadas en agua hirviendo durante 15 minutos. Escurrir parte del agua y triturar todo con aceite de oliva hasta que quede suave.",
-            "meal_type": "dinner",
-            "diet_tags": "medical,weight,own,easy-digest,low-sodium,low-fat",
-            "ingredients": [
-                ("calabaza", 300, "g"),
-                ("patata", 100, "g"),
-                ("cebolla", 0.5, "unidad"),
-                ("aceite de oliva", 10, "ml")
-            ]
-        },
-        # Snacks
-        {
-            "name": "Pudín de chía con fresas",
-            "instructions": "Mezclar las semillas de chía con la leche de almendras y dejar reposar en el refrigerador por al menos 2 horas. Servir frío decorado con fresas picadas.",
-            "meal_type": "snack",
-            "diet_tags": "weight,own,high-fiber,low-calorie",
-            "ingredients": [
-                ("semillas de chía", 20, "g"),
-                ("leche de almendras", 150, "ml"),
-                ("fresas", 50, "g")
-            ]
-        },
-        {
-            "name": "Yogur con nueces y miel",
-            "instructions": "Colocar el yogur griego en un tazón. Añadir las nueces picadas y bañar con un hilo de miel.",
-            "meal_type": "snack",
-            "diet_tags": "own,sports,high-protein",
-            "ingredients": [
-                ("yogur griego", 200, "g"),
-                ("nueces", 20, "g"),
-                ("miel", 10, "ml")
-            ]
-        }
-    ]
     
     for r in recipes_data:
-        cursor.execute(
-            "INSERT INTO recipes (name, instructions, meal_type, diet_tags) VALUES (?, ?, ?, ?)",
-            (r["name"], r["instructions"], r["meal_type"], r["diet_tags"])
-        )
-        recipe_id = cursor.lastrowid
-        for ing_name, qty, unit in r["ingredients"]:
+        cursor.execute("SELECT id FROM recipes WHERE name = ?", (r["name"],))
+        row = cursor.fetchone()
+        
+        if not row:
             cursor.execute(
-                "INSERT INTO recipe_ingredients (recipe_id, ingredient_name, quantity, unit) VALUES (?, ?, ?, ?)",
-                (recipe_id, ing_name.lower().strip(), qty, unit)
+                "INSERT INTO recipes (name, instructions, meal_type, diet_tags) VALUES (?, ?, ?, ?)",
+                (r["name"], r["instructions"], r["meal_type"], r["diet_tags"])
             )
+            recipe_id = cursor.lastrowid
+            for ing_name, qty, unit in r["ingredients"]:
+                cursor.execute(
+                    "INSERT INTO recipe_ingredients (recipe_id, ingredient_name, quantity, unit) VALUES (?, ?, ?, ?)",
+                    (recipe_id, ing_name.lower().strip(), qty, unit)
+                )
             
     conn.commit()
 
