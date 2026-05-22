@@ -22,6 +22,7 @@ El sistema cuenta con una interfaz web interactiva desarrollada en **Streamlit**
 
 ```text
 dietify/
+├── iniciar.bat       # Script de ejecución rápida automatizada (Windows)
 ├── app.py            # Aplicación web principal en Streamlit
 ├── core/             # Lógica del motor de reglas y base de datos
 ├── dietify.py        # Script unificado CLI (Legacy)
@@ -53,7 +54,12 @@ pip install -r requirements.txt
 
 ## Ejecución del Programa
 
-Para iniciar la interfaz web interactiva (UI), asegúrate de estar en el entorno virtual y ejecuta el siguiente comando en la terminal:
+### Opción 1: Ejecución Rápida (Recomendado en Windows)
+Si no quieres usar la terminal, simplemente ve a la carpeta del proyecto y haz **doble clic** en el archivo `iniciar.bat`. 
+Este script se encargará de crear el entorno virtual, instalar lo que falte y abrir automáticamente la aplicación en tu navegador.
+
+### Opción 2: Ejecución Manual (Windows / Mac / Linux)
+Para iniciar la interfaz web de forma manual, asegúrate de estar en el entorno virtual activo y ejecuta el siguiente comando en la terminal:
 
 ```bash
 streamlit run app.py
