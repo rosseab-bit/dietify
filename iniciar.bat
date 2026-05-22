@@ -5,7 +5,7 @@ echo =======================================
 
 :: Comprobar si existe el entorno virtual, si no, lo crea
 if not exist venv\ (
-    echo [1/3] Creando entorno virtual (esto puede tardar unos segundos)...
+    echo [1/3] Creando entorno virtual, esto puede tardar unos segundos...
     python -m venv venv
 )
 
