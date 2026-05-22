@@ -93,6 +93,14 @@ st.markdown("""
         font-weight: bold;
         font-size: 0.85em;
     }
+    .meal-badge-snack {
+        background-color: #f8bbd0;
+        color: #c2185b;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-weight: bold;
+        font-size: 0.85em;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -135,6 +143,19 @@ periodo_opt = st.sidebar.radio(
     ["Un Día", "Una Semana (7 Días)"]
 )
 target = "week" if "Semana" in periodo_opt else "day"
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("🍽️ Comidas a incluir")
+include_breakfast = st.sidebar.checkbox("Desayuno", value=True)
+include_lunch = st.sidebar.checkbox("Almuerzo", value=True)
+include_snack = st.sidebar.checkbox("Merienda (Snack)", value=False)
+include_dinner = st.sidebar.checkbox("Cena", value=True)
+
+selected_meals = []
+if include_breakfast: selected_meals.append("breakfast")
+if include_lunch: selected_meals.append("lunch")
+if include_snack: selected_meals.append("snack")
+if include_dinner: selected_meals.append("dinner")
 
 # Pestañas principales
 tab_recomendar, tab_inventario, tab_catalogo = st.tabs([
@@ -199,22 +220,22 @@ with tab_recomendar:
                         available_ingredients=avail_names,
                         all_recipes=all_recipes
                     )
-                    plan = plan_menus(eligible, target, all_recipes)
+                    plan = plan_menus(eligible, target, all_recipes, selected_meals=selected_meals)
                 
                 st.success("🎉 ¡Menú generado exitosamente!")
                 
                 # Mostrar resultados
                 if target == "day":
                     menu = plan["day_menu"]
-                    for meal in ["breakfast", "lunch", "dinner"]:
+                    for meal in selected_meals:
                         rec_data = menu.get(meal)
                         if rec_data:
                             recipe = rec_data["recipe"]
                             status = rec_data["status"]
                             missing = rec_data["missing_ingredients"]
                             
-                            badge_style = "breakfast" if meal == "breakfast" else "lunch" if meal == "lunch" else "dinner"
-                            meal_es = {"breakfast": "DESAYUNO", "lunch": "ALMUERZO", "dinner": "CENA"}.get(meal)
+                            badge_style = meal
+                            meal_es = {"breakfast": "DESAYUNO", "lunch": "ALMUERZO", "dinner": "CENA", "snack": "MERIENDA"}.get(meal)
                             
                             card_class = "recipe-card" if status == "exact" else "recipe-card-near"
                             status_html = '<span style="color:#4CAF50; font-weight:bold;">✓ EXACTO</span>' if status == "exact" else f'<span style="color:#ff9800; font-weight:bold;">✗ CASI COMPLETO</span>'
@@ -242,8 +263,9 @@ with tab_recomendar:
                     # Semanal
                     for day_plan in plan["week_menu"]:
                         st.subheader(f"📅 Día {day_plan['day_number']}")
-                        cols = st.columns(3)
-                        for idx, meal in enumerate(["breakfast", "lunch", "dinner"]):
+                        num_cols = max(1, len(selected_meals))
+                        cols = st.columns(num_cols)
+                        for idx, meal in enumerate(selected_meals):
                             rec_data = day_plan["menu"].get(meal)
                             with cols[idx]:
                                 if rec_data:
@@ -251,7 +273,7 @@ with tab_recomendar:
                                     status = rec_data["status"]
                                     missing = rec_data["missing_ingredients"]
                                     
-                                    meal_es = {"breakfast": "Desayuno", "lunch": "Almuerzo", "dinner": "Cena"}.get(meal)
+                                    meal_es = {"breakfast": "Desayuno", "lunch": "Almuerzo", "dinner": "Cena", "snack": "Merienda"}.get(meal)
                                     status_icon = "🟢" if status == "exact" else "🟡"
                                     
                                     st.markdown(f"**{meal_es}**")

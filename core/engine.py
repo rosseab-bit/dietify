@@ -145,10 +145,13 @@ def run_expert_system(diet_type: str, constraints: List[str], available_ingredie
     eligible.sort(key=lambda x: (0 if x["status"] == "exact" else len(x["missing_ingredients"])))
     return eligible
 
-def plan_menus(eligible_recipes: List[Dict[str, Any]], target: str, all_recipes: List[Dict[str, Any]]) -> Dict[str, Any]:
-    breakfasts = [r for r in eligible_recipes if r["recipe"]["meal_type"] == "breakfast"]
-    lunches = [r for r in eligible_recipes if r["recipe"]["meal_type"] in ["lunch", "dinner"]]
-    dinners = [r for r in eligible_recipes if r["recipe"]["meal_type"] in ["lunch", "dinner"]]
+def plan_menus(eligible_recipes: List[Dict[str, Any]], target: str, all_recipes: List[Dict[str, Any]], selected_meals: Optional[List[str]] = None) -> Dict[str, Any]:
+    if selected_meals is None:
+        selected_meals = ["breakfast", "lunch", "dinner"]
+        
+    meals_planned = {}
+    for mtype in ["breakfast", "lunch", "dinner", "snack"]:
+        meals_planned[mtype] = [r for r in eligible_recipes if r["recipe"]["meal_type"] == mtype or (mtype in ["lunch", "dinner"] and r["recipe"]["meal_type"] in ["lunch", "dinner"])]
     
     def get_fallbacks(meal_type: str) -> List[Dict[str, Any]]:
         fallbacks = []
@@ -162,12 +165,9 @@ def plan_menus(eligible_recipes: List[Dict[str, Any]], target: str, all_recipes:
                     })
         return fallbacks
         
-    if not breakfasts:
-        breakfasts = get_fallbacks("breakfast")
-    if not lunches:
-        lunches = get_fallbacks("lunch")
-    if not dinners:
-        dinners = get_fallbacks("dinner")
+    for mtype in ["breakfast", "lunch", "dinner", "snack"]:
+        if not meals_planned[mtype]:
+            meals_planned[mtype] = get_fallbacks(mtype)
 
     def pick_meal(options: List[Dict[str, Any]], used_ids: List[int]) -> Dict[str, Any]:
         if not options:
@@ -183,18 +183,18 @@ def plan_menus(eligible_recipes: List[Dict[str, Any]], target: str, all_recipes:
 
     if target == "day":
         used_ids = []
-        b_meal = pick_meal(breakfasts, used_ids)
-        l_meal = pick_meal(lunches, used_ids)
-        d_meal = pick_meal(dinners, used_ids)
-        return {"day_menu": {"breakfast": b_meal, "lunch": l_meal, "dinner": d_meal}, "week_menu": None}
+        menu = {}
+        for mtype in selected_meals:
+            menu[mtype] = pick_meal(meals_planned[mtype], used_ids)
+        return {"day_menu": menu, "week_menu": None}
     else:
         week_menu = []
         used_ids = []
         for day in range(1, 8):
             if len(used_ids) > 6:
                 used_ids = used_ids[-3:]
-            b_meal = pick_meal(breakfasts, used_ids)
-            l_meal = pick_meal(lunches, used_ids)
-            d_meal = pick_meal(dinners, used_ids)
-            week_menu.append({"day_number": day, "menu": {"breakfast": b_meal, "lunch": l_meal, "dinner": d_meal}})
+            menu = {}
+            for mtype in selected_meals:
+                menu[mtype] = pick_meal(meals_planned[mtype], used_ids)
+            week_menu.append({"day_number": day, "menu": menu})
         return {"day_menu": None, "week_menu": week_menu}
