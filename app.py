@@ -5,13 +5,13 @@ import sys
 # Parchear collections para compatibilidad de experta
 import collections
 import collections.abc
-collections.Mapping = collections.abc.Mapping # type: ignore
-collections.MutableMapping = collections.abc.MutableMapping # type: ignore
-collections.Sequence = collections.abc.Sequence # type: ignore
-collections.MutableSequence = collections.abc.MutableSequence # type: ignore
-collections.Iterable = collections.abc.Iterable # type: ignore
-collections.MutableSet = collections.abc.MutableSet # type: ignore
-collections.Callable = collections.abc.Callable # type: ignore
+collections.Mapping = collections.abc.Mapping
+collections.MutableMapping = collections.abc.MutableMapping
+collections.Sequence = collections.abc.Sequence
+collections.MutableSequence = collections.abc.MutableSequence
+collections.Iterable = collections.abc.Iterable
+collections.MutableSet = collections.abc.MutableSet
+collections.Callable = collections.abc.Callable
 
 from core.db import (
     init_db,

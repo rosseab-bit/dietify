@@ -1,8 +1,8 @@
-# Dietify - Sistema Experto por Consola (CLI)
+# Dietify - Sistema Experto Nutricional (Web UI)
 
 Este es el sistema experto **Dietify**, diseñado para recomendar menús (diarios o semanales) basados en el inventario actual de tu cocina (alacenas, heladera) y tu tipo de dieta (deportes, peso, médica, propia/custom).
 
-El sistema se ejecuta completamente por consola (interfaz CLI) y utiliza la biblioteca **experta** de Python, un motor de reglas basado en CLIPS adaptado para Python, y una base de datos local **SQLite3**.
+El sistema cuenta con una interfaz web interactiva desarrollada en **Streamlit** y utiliza la biblioteca **experta** de Python, un motor de reglas basado en CLIPS adaptado para Python, junto con una base de datos local **SQLite3**.
 
 ---
 
@@ -22,9 +22,10 @@ El sistema se ejecuta completamente por consola (interfaz CLI) y utiliza la bibl
 
 ```text
 dietify/
-├── dietify.py        # Script unificado (motor experta + SQLite3 + interfaz CLI)
-├── test_cli.py       # Script de pruebas automatizadas del CLI
-├── requirements.txt  # Dependencias del proyecto (solo experta)
+├── app.py            # Aplicación web principal en Streamlit
+├── core/             # Lógica del motor de reglas y base de datos
+├── dietify.py        # Script unificado CLI (Legacy)
+├── requirements.txt  # Dependencias del proyecto
 └── README.md         # Documentación de uso
 ```
 
@@ -52,22 +53,14 @@ pip install -r requirements.txt
 
 ## Ejecución del Programa
 
-Para iniciar la interfaz interactiva por consola:
+Para iniciar la interfaz web interactiva (UI), asegúrate de estar en el entorno virtual y ejecuta el siguiente comando en la terminal:
+
 ```bash
-python dietify.py
+streamlit run app.py
 ```
 
-### Opciones del Menú Principal:
-1. **Recomendar menú para el día o la semana:** Permite elegir tu dieta, ingresar ingredientes manualmente o cargarlos de la base de datos, y generar tu menú con las recetas que mejor coincidan con lo que tienes.
-2. **Gestionar alimentos en la alacena / heladera:** Permite ver, agregar, actualizar o eliminar ingredientes guardados en tu cocina virtual.
-3. **Ver catálogo de recetas en el sistema:** Muestra todas las recetas configuradas con sus instrucciones e ingredientes.
-4. **Registrar una nueva receta en el catálogo:** Registra recetas nuevas y las guarda de forma permanente en el sistema SQLite.
+Esto abrirá automáticamente una pestaña en tu navegador web con la interfaz gráfica de Dietify, donde podrás:
+1. **Generar Recomendación:** Elegir tu dieta, ingresar ingredientes y generar tu menú con las recetas que mejor coincidan con lo que tienes.
+2. **Mi Alacena / Inventario:** Gestionar los alimentos guardados en tu cocina virtual.
+3. **Catálogo de Recetas:** Ver todas las recetas y registrar opciones nuevas de forma permanente.
 
----
-
-## Ejecutar Pruebas Automatizadas
-
-Hemos provisto un script de pruebas integrado para validar el correcto funcionamiento del motor de reglas del CLI y la lógica de recomendación:
-```bash
-python test_cli.py
-```
