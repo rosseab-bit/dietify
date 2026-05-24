@@ -133,3 +133,83 @@ def db_create_recipe(name: str, instructions: str, meal_type: str, diet_tags: Li
         )
     conn.commit()
     conn.close()
+
+def db_seed_inventory_from_json():
+    conn = get_connection()
+    cursor = conn.cursor()
+    # Comprobamos si el inventario ya tiene elementos
+    cursor.execute("SELECT COUNT(*) FROM inventory")
+    if cursor.fetchone()[0] > 0:
+        conn.close()
+        return  # Si ya hay ingredientes, no hacemos nada para no pisar al usuario
+
+    # Calcular la ruta al archivo en la raíz del proyecto
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    json_path = os.path.join(base_dir, "ingredient_seed.json")
+        
+    if not os.path.exists(json_path):
+         print(f"Advertencia: No se encontró el archivo de ingredientes en {json_path}")
+         conn.close()
+         return
+
+        # Leer e insertar los datos
+    try:
+        with open(json_path, "r", encoding="utf-8") as f:
+            ingredients = json.load(f)
+                
+        for ing in ingredients:
+            name_lower = ing["name"].strip().lower()
+            cursor.execute(
+                "INSERT INTO inventory (name, quantity, unit) VALUES (?, ?, ?)",
+                (name_lower, ing["quantity"], ing["unit"].strip())
+            )
+        conn.commit()
+    except Exception as e:
+        print(f"Error al sembrar el inventario: {e}")
+    finally:
+        conn.close() 
+        
+def db_seed_recipes_from_json():
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    # Comprobamos si ya existen recetas en la base de datos
+    cursor.execute("SELECT COUNT(*) FROM recipes")
+    if cursor.fetchone()[0] > 0:
+        conn.close()
+        return  # Si ya hay recetas, salimos para no duplicar datos
+
+    # Calcular la ruta al archivo seed.json en la raíz del proyecto
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    json_path = os.path.join(base_dir, "seed.json")
+    
+    if not os.path.exists(json_path):
+        print(f"Advertencia: No se encontró el archivo de recetas en {json_path}")
+        conn.close()
+        return
+
+    try:
+        with open(json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            
+        # Controlamos si viene como lista directa o dentro de una clave "recipes"
+        if isinstance(data, dict):
+            recipes_list = data.get("recipes", [])
+        elif isinstance(data, list):
+            recipes_list = data
+        else:
+            recipes_list = []
+            
+        # Insertamos cada receta usando la función del sistema
+        for r in recipes_list:
+            db_create_recipe(
+                name=r["name"],
+                instructions=r["instructions"],
+                meal_type=r["meal_type"],
+                diet_tags=r["diet_tags"] if isinstance(r["diet_tags"], list) else [t.strip() for t in r["diet_tags"].split(",") if t.strip()],
+                ingredients=[{"name": ing[0], "quantity": ing[1], "unit": ing[2]} for ing in r["ingredients"]]
+            )
+    except Exception as e:
+        print(f"Error al sembrar las recetas: {e}")
+    finally:
+        conn.close()

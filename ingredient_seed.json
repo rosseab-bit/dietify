@@ -1,0 +1,20 @@
+[
+    { "name": "huevo", "quantity": 12, "unit": "unidades" },
+    { "name": "tomate", "quantity": 4, "unit": "unidades" },
+    { "name": "aceite", "quantity": 250, "unit": "ml" },
+    { "name": "avena", "quantity": 500, "unit": "g" },
+    { "name": "leche", "quantity": 1000, "unit": "ml" },
+    { "name": "manzana", "quantity": 6, "unit": "unidades" },
+    { "name": "canela", "quantity": 20, "unit": "g" },
+    { "name": "pechuga de pollo", "quantity": 600, "unit": "g" },
+    { "name": "arroz", "quantity": 1000, "unit": "g" },
+    { "name": "brócoli", "quantity": 400, "unit": "g" },
+    { "name": "aceite de oliva", "quantity": 500, "unit": "ml" },
+    { "name": "atún en lata", "quantity": 3, "unit": "unidades" },
+    { "name": "pasta", "quantity": 500, "unit": "g" },
+    { "name": "miel", "quantity": 150, "unit": "ml" },
+    { "name": "mantequilla", "quantity": 200, "unit": "g" },
+    { "name": "calabaza", "quantity": 1000, "unit": "g" },
+    { "name": "patata", "quantity": 800, "unit": "g" },
+    { "name": "cebolla", "quantity": 3, "unit": "unidades" }
+]
