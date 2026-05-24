@@ -10,7 +10,7 @@ def render_css():
         .stButton>button { background-color: #4CAF50; color: white; border-radius: 8px; border: none; padding: 10px 24px; transition: 0.3s; }
         .stButton>button:hover { background-color: #45a049; box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2); }
         .recipe-card { background-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; border-left: 5px solid #4CAF50; }
-        .recipe-card-near { background-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; border-left: 5px solid #ff9800; }
+        .recipe-card-near { background-color: #1e1e1e; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; border-left: 5px solid #ff9800; }
         .meal-badge-breakfast { background-color: #ffe0b2; color: #e65100; padding: 4px 10px; border-radius: 12px; font-weight: bold; font-size: 0.85em; }
         .meal-badge-lunch { background-color: #c8e6c9; color: #1b5e20; padding: 4px 10px; border-radius: 12px; font-weight: bold; font-size: 0.85em; }
         .meal-badge-dinner { background-color: #bbdefb; color: #0d47a1; padding: 4px 10px; border-radius: 12px; font-weight: bold; font-size: 0.85em; }
@@ -76,7 +76,7 @@ def render_recommendation_tab(diet_type, constraints, target, selected_meals):
                                     <span class="meal-badge-{meal}">{meal_es}</span> <span>Estado: {status_html}</span>
                                 </div>
                                 <h3>{recipe['name']}</h3>
-                                <div style="background-color: #e8f5e9; padding: 10px; border-radius: 5px;"><strong>💡 Por qué:</strong> {reason}</div>
+                                <div style="background-color: #334733; padding: 10px; border-radius: 5px;"><strong>💡 Por qué:</strong> {reason}</div>
                                 <p><strong>Dietas:</strong> {", ".join(recipe['diet_tags'])}</p>
                             </div>
                             """, unsafe_allow_html=True)
