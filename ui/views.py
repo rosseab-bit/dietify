@@ -67,7 +67,7 @@ def render_recommendation_tab(diet_type, constraints, target, selected_meals):
                         if rec_data:
                             recipe, status, missing, reason = rec_data["recipe"], rec_data["status"], rec_data["missing_ingredients"], rec_data.get("reason", "")
                             meal_es = {"breakfast": "DESAYUNO", "lunch": "ALMUERZO", "dinner": "CENA", "snack": "MERIENDA"}.get(meal)
-                            card_class = "recipe-card" if status == "exact" else "recipe-card-near"
+                            card_class = "recipe-card-near" if status == "exact" else "recipe-card-near"
                             status_html = '<span style="color:#4CAF50;">✓ EXACTO</span>' if status == "exact" else '<span style="color:#ff9800;">✗ CASI COMPLETO</span>'
                             
                             st.markdown(f"""
