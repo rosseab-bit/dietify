@@ -42,6 +42,12 @@ class DietRecommenderEngine(KnowledgeEngine):
                 self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="exact", missing_ingredients=frozenset(), reason=reason))
             elif len(missing) <= 2:
                 self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="near", missing_ingredients=frozenset(missing), reason=reason))
+            else:
+                # EXCLUSIÓN TAREA 2: Cumple la dieta pero faltan ingredientes
+                self.declare(ExcludedRecipe(id=id, name=name, reason=f"Faltan demasiados ingredientes ({len(missing)} faltantes) para esta receta deportiva."))
+        else:
+            # EXCLUSIÓN TAREA 2: No cumple las etiquetas
+            self.declare(ExcludedRecipe(id=id, name=name, reason="No posee las etiquetas requeridas para rendimiento deportivo (sports, high-protein, high-carb)."))
 
     @Rule(
         DietProfile(diet_type="weight"),
@@ -56,6 +62,10 @@ class DietRecommenderEngine(KnowledgeEngine):
                 self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="exact", missing_ingredients=frozenset(), reason=reason))
             elif len(missing) <= 2:
                 self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="near", missing_ingredients=frozenset(missing), reason=reason))
+            else:
+                self.declare(ExcludedRecipe(id=id, name=name, reason=f"Faltan demasiados ingredientes ({len(missing)} faltantes) para control de peso."))
+        else:
+            self.declare(ExcludedRecipe(id=id, name=name, reason="No posee las etiquetas requeridas para control de peso (weight, low-calorie, low-carb, high-fiber)."))
 
     @Rule(
         DietProfile(diet_type="medical", constraints=MATCH.constraints),
@@ -63,7 +73,7 @@ class DietRecommenderEngine(KnowledgeEngine):
         RecipeFact(id=MATCH.id, name=MATCH.name, meal_type=MATCH.mtype, ingredients=MATCH.reqs, tags=MATCH.tags)
     )
     def match_medical_recipe(self, id, name, mtype, reqs, tags, avail, constraints):
-        is_compatible = "medical" in tags or any(c in tags for c in constraints)
+        # SOLUCIÓN BUG: Evaluamos exclusión médica PRIMERO para cualquier receta
         excluded, trigger = False, ""
         
         if any(c in constraints for c in ["diabetic", "diabetic-friendly", "diabetes", "low-sugar"]):
@@ -72,23 +82,32 @@ class DietRecommenderEngine(KnowledgeEngine):
                 
         if any(c in constraints for c in ["hypertensive", "low-sodium", "hipertension"]):
             if "low-sodium" not in tags and "easy-digest" not in tags:
-                excluded, trigger = True, "exceso de sodio"
+                excluded, trigger = True, "exceso de sodio (no adaptado)"
                 
         if "low-fat" in constraints or "bajo en grasa" in constraints:
             if any(term in reqs for term in ["mantequilla", "aceite", "aceite de oliva"]) and "low-fat" not in tags:
                 excluded, trigger = True, "exceso de grasas"
 
-        if is_compatible:
-            if excluded:
-                self.declare(ExcludedRecipe(id=id, name=name, reason=f"Exclusión médica: Contiene '{trigger}', prohibido para tu condición."))
-            else:
-                missing = reqs - avail
-                reason = "Aprobada: Cumple rigurosamente con tus restricciones médicas."
-                if len(missing) == 0:
-                    self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="exact", missing_ingredients=frozenset(), reason=reason))
-                elif len(missing) <= 2:
-                    self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="near", missing_ingredients=frozenset(missing), reason=reason))
+        # Si hay exclusión médica, se declara inmediatamente sin importar las etiquetas
+        if excluded:
+            self.declare(ExcludedRecipe(id=id, name=name, reason=f"Exclusión médica: Contiene o procesa '{trigger}', prohibido para tu condición."))
+            return  # Cortamos la ejecución de esta regla para esta receta
 
+        # Si pasó los filtros médicos, vemos si es compatible con el perfil de la receta
+        is_compatible = "medical" in tags or any(c in tags for c in constraints)
+        
+        if is_compatible:
+            missing = reqs - avail
+            reason = "Aprobada: Cumple rigurosamente con tus restricciones médicas."
+            if len(missing) == 0:
+                self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="exact", missing_ingredients=frozenset(), reason=reason))
+            elif len(missing) <= 2:
+                self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="near", missing_ingredients=frozenset(missing), reason=reason))
+            else:
+                self.declare(ExcludedRecipe(id=id, name=name, reason=f"Médicamente apta, pero faltan demasiados ingredientes ({len(missing)} faltantes)."))
+        else:
+            self.declare(ExcludedRecipe(id=id, name=name, reason="No está etiquetada como apta para tu perfil de restricciones médicas especificado."))
+    
     @Rule(
         DietProfile(diet_type="own"),
         AvailableSet(names=MATCH.avail),
@@ -101,6 +120,8 @@ class DietRecommenderEngine(KnowledgeEngine):
             self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="exact", missing_ingredients=frozenset(), reason=reason))
         elif len(missing) <= 2:
             self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="near", missing_ingredients=frozenset(missing), reason=reason))
+        else:
+            self.declare(ExcludedRecipe(id=id, name=name, reason=f"Dieta general aceptada, pero faltan más de 2 ingredientes ({len(missing)} faltantes)."))
 
 def run_expert_system(diet_type: str, constraints: List[str], available_ingredients: List[str], all_recipes: List[Dict[str, Any]]) -> Dict[str, Any]:
     engine = DietRecommenderEngine()
