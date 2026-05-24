@@ -1,9 +1,3 @@
-import os
-import sys
-import random
-from typing import List, Dict, Any, Optional
-
-# 1. Monkeypatch collections para compatibilidad de experta en Python 3.10+
 import collections
 import collections.abc
 collections.Mapping = collections.abc.Mapping
@@ -14,27 +8,27 @@ collections.Iterable = collections.abc.Iterable
 collections.MutableSet = collections.abc.MutableSet
 collections.Callable = collections.abc.Callable
 
-from experta import KnowledgeEngine, Rule, Fact, MATCH, AS
+import random
+from typing import List, Dict, Any, Optional
+from experta import KnowledgeEngine, Rule, Fact, MATCH
 
 class RecipeFact(Fact):
-    # fields: id, name, meal_type, ingredients (frozenset), tags (frozenset)
     pass
 
 class DietProfile(Fact):
-    # fields: diet_type, target, constraints (frozenset)
     pass
 
 class AvailableSet(Fact):
-    # fields: names (frozenset)
     pass
 
 class EligibleRecipe(Fact):
-    # fields: id, name, meal_type, status ("exact" or "near"), missing_ingredients (frozenset)
+    pass
+
+class ExcludedRecipe(Fact):
     pass
 
 class DietRecommenderEngine(KnowledgeEngine):
     
-    # A. Dieta Deportes
     @Rule(
         DietProfile(diet_type="sports"),
         AvailableSet(names=MATCH.avail),
@@ -43,12 +37,12 @@ class DietRecommenderEngine(KnowledgeEngine):
     def match_sports_recipe(self, id, name, mtype, reqs, tags, avail):
         if "sports" in tags or "high-protein" in tags or "high-carb" in tags:
             missing = reqs - avail
+            reason = "Compatible por su alto valor proteico/carbohidratos, ideal para tu dieta deportiva."
             if len(missing) == 0:
-                self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="exact", missing_ingredients=frozenset()))
+                self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="exact", missing_ingredients=frozenset(), reason=reason))
             elif len(missing) <= 2:
-                self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="near", missing_ingredients=frozenset(missing)))
+                self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="near", missing_ingredients=frozenset(missing), reason=reason))
 
-    # B. Dieta Control Peso
     @Rule(
         DietProfile(diet_type="weight"),
         AvailableSet(names=MATCH.avail),
@@ -57,12 +51,12 @@ class DietRecommenderEngine(KnowledgeEngine):
     def match_weight_recipe(self, id, name, mtype, reqs, tags, avail):
         if "weight" in tags or "low-calorie" in tags or "low-carb" in tags or "high-fiber" in tags:
             missing = reqs - avail
+            reason = "Compatible por su bajo aporte calórico/carbohidratos para el control de peso."
             if len(missing) == 0:
-                self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="exact", missing_ingredients=frozenset()))
+                self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="exact", missing_ingredients=frozenset(), reason=reason))
             elif len(missing) <= 2:
-                self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="near", missing_ingredients=frozenset(missing)))
+                self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="near", missing_ingredients=frozenset(missing), reason=reason))
 
-    # C. Dieta Médica
     @Rule(
         DietProfile(diet_type="medical", constraints=MATCH.constraints),
         AvailableSet(names=MATCH.avail),
@@ -70,32 +64,31 @@ class DietRecommenderEngine(KnowledgeEngine):
     )
     def match_medical_recipe(self, id, name, mtype, reqs, tags, avail, constraints):
         is_compatible = "medical" in tags or any(c in tags for c in constraints)
-        excluded = False
+        excluded, trigger = False, ""
         
-        # Diabetes: no azúcar ni miel
         if any(c in constraints for c in ["diabetic", "diabetic-friendly", "diabetes", "low-sugar"]):
             if any(term in reqs for term in ["miel", "azúcar", "azucar"]):
-                excluded = True
+                excluded, trigger = True, "miel o azúcar"
                 
-        # Hipertensión: debe ser bajo en sodio
         if any(c in constraints for c in ["hypertensive", "low-sodium", "hipertension"]):
             if "low-sodium" not in tags and "easy-digest" not in tags:
-                excluded = True
+                excluded, trigger = True, "exceso de sodio"
                 
-        # Bajo en grasas (low-fat)
         if "low-fat" in constraints or "bajo en grasa" in constraints:
-            if any(term in reqs for term in ["mantequilla", "aceite", "aceite de oliva"]):
-                if "low-fat" not in tags:
-                    excluded = True
+            if any(term in reqs for term in ["mantequilla", "aceite", "aceite de oliva"]) and "low-fat" not in tags:
+                excluded, trigger = True, "exceso de grasas"
 
-        if is_compatible and not excluded:
-            missing = reqs - avail
-            if len(missing) == 0:
-                self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="exact", missing_ingredients=frozenset()))
-            elif len(missing) <= 2:
-                self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="near", missing_ingredients=frozenset(missing)))
+        if is_compatible:
+            if excluded:
+                self.declare(ExcludedRecipe(id=id, name=name, reason=f"Exclusión médica: Contiene '{trigger}', prohibido para tu condición."))
+            else:
+                missing = reqs - avail
+                reason = "Aprobada: Cumple rigurosamente con tus restricciones médicas."
+                if len(missing) == 0:
+                    self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="exact", missing_ingredients=frozenset(), reason=reason))
+                elif len(missing) <= 2:
+                    self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="near", missing_ingredients=frozenset(missing), reason=reason))
 
-    # D. Dieta Propia / General
     @Rule(
         DietProfile(diet_type="own"),
         AvailableSet(names=MATCH.avail),
@@ -103,12 +96,13 @@ class DietRecommenderEngine(KnowledgeEngine):
     )
     def match_own_recipe(self, id, name, mtype, reqs, tags, avail):
         missing = reqs - avail
+        reason = "Aprobada: Se ajusta a tus preferencias generales y disponibilidad de ingredientes."
         if len(missing) == 0:
-            self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="exact", missing_ingredients=frozenset()))
+            self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="exact", missing_ingredients=frozenset(), reason=reason))
         elif len(missing) <= 2:
-            self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="near", missing_ingredients=frozenset(missing)))
+            self.declare(EligibleRecipe(id=id, name=name, meal_type=mtype, status="near", missing_ingredients=frozenset(missing), reason=reason))
 
-def run_expert_system(diet_type: str, constraints: List[str], available_ingredients: List[str], all_recipes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def run_expert_system(diet_type: str, constraints: List[str], available_ingredients: List[str], all_recipes: List[Dict[str, Any]]) -> Dict[str, Any]:
     engine = DietRecommenderEngine()
     engine.reset()
     
@@ -131,7 +125,7 @@ def run_expert_system(diet_type: str, constraints: List[str], available_ingredie
         
     engine.run()
     
-    eligible = []
+    eligible, excluded = [], []
     for fact_id, fact in engine.facts.items():
         if isinstance(fact, EligibleRecipe):
             original = next((r for r in all_recipes if r["id"] == fact["id"]), None)
@@ -139,11 +133,17 @@ def run_expert_system(diet_type: str, constraints: List[str], available_ingredie
                 eligible.append({
                     "recipe": original,
                     "status": fact["status"],
-                    "missing_ingredients": list(fact["missing_ingredients"])
+                    "missing_ingredients": list(fact["missing_ingredients"]),
+                    "reason": fact.get("reason", "")
                 })
+        elif isinstance(fact, ExcludedRecipe):
+            excluded.append({
+                "name": fact.get("name"),
+                "reason": fact.get("reason")
+            })
                 
     eligible.sort(key=lambda x: (0 if x["status"] == "exact" else len(x["missing_ingredients"])))
-    return eligible
+    return {"eligible": eligible, "excluded": excluded}
 
 def plan_menus(eligible_recipes: List[Dict[str, Any]], target: str, all_recipes: List[Dict[str, Any]], selected_meals: Optional[List[str]] = None) -> Dict[str, Any]:
     if selected_meals is None:
@@ -161,7 +161,8 @@ def plan_menus(eligible_recipes: List[Dict[str, Any]], target: str, all_recipes:
                     fallbacks.append({
                         "recipe": r,
                         "status": "near",
-                        "missing_ingredients": [ing["ingredient_name"] for ing in r["ingredients"]]
+                        "missing_ingredients": [ing["ingredient_name"] for ing in r["ingredients"]],
+                        "reason": "Fallback: Se sugiere para completar el menú, aunque no cumple todas las reglas de la dieta actual."
                     })
         return fallbacks
         
@@ -170,31 +171,20 @@ def plan_menus(eligible_recipes: List[Dict[str, Any]], target: str, all_recipes:
             meals_planned[mtype] = get_fallbacks(mtype)
 
     def pick_meal(options: List[Dict[str, Any]], used_ids: List[int]) -> Dict[str, Any]:
-        if not options:
-            return None
+        if not options: return None
         unused = [o for o in options if o["recipe"]["id"] not in used_ids]
-        if unused:
-            chosen = unused[0]
-        else:
-            slice_size = min(3, len(options))
-            chosen = random.choice(options[:slice_size])
+        chosen = unused[0] if unused else random.choice(options[:min(3, len(options))])
         used_ids.append(chosen["recipe"]["id"])
         return chosen
 
     if target == "day":
         used_ids = []
-        menu = {}
-        for mtype in selected_meals:
-            menu[mtype] = pick_meal(meals_planned[mtype], used_ids)
+        menu = {mtype: pick_meal(meals_planned[mtype], used_ids) for mtype in selected_meals}
         return {"day_menu": menu, "week_menu": None}
     else:
-        week_menu = []
-        used_ids = []
+        week_menu, used_ids = [], []
         for day in range(1, 8):
-            if len(used_ids) > 6:
-                used_ids = used_ids[-3:]
-            menu = {}
-            for mtype in selected_meals:
-                menu[mtype] = pick_meal(meals_planned[mtype], used_ids)
+            if len(used_ids) > 6: used_ids = used_ids[-3:]
+            menu = {mtype: pick_meal(meals_planned[mtype], used_ids) for mtype in selected_meals}
             week_menu.append({"day_number": day, "menu": menu})
         return {"day_menu": None, "week_menu": week_menu}

@@ -1,9 +1,9 @@
 import os
 import sqlite3
 import json
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
-# Definir la ruta de la base de datos de manera que quede en la raíz del proyecto
+# Definir la ruta de la base de datos en la raíz del proyecto[cite: 16]
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dietify.db")
 
 def get_connection():
@@ -16,7 +16,6 @@ def init_db():
     conn = get_connection()
     cursor = conn.cursor()
     
-    # Tabla de inventario
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS inventory (
         name TEXT PRIMARY KEY,
@@ -25,18 +24,16 @@ def init_db():
     );
     """)
     
-    # Tabla de recetas
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS recipes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL UNIQUE,
         instructions TEXT NOT NULL,
-        meal_type TEXT NOT NULL, -- breakfast, lunch, dinner, snack
-        diet_tags TEXT NOT NULL  -- comma-separated tags
+        meal_type TEXT NOT NULL,
+        diet_tags TEXT NOT NULL
     );
     """)
     
-    # Tabla de ingredientes por receta
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS recipe_ingredients (
         recipe_id INTEGER NOT NULL,
@@ -49,39 +46,7 @@ def init_db():
     """)
     
     conn.commit()
-    seed_recipes(conn)
     conn.close()
-
-def seed_recipes(conn):
-    cursor = conn.cursor()
-    
-    # El archivo seed.json está en la carpeta raíz del proyecto (un nivel arriba de core/)
-    seed_file_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "seed.json")
-    try:
-        with open(seed_file_path, "r", encoding="utf-8") as f:
-            recipes_data = json.load(f)
-    except FileNotFoundError:
-        print(f"Error: No se encontró el archivo {seed_file_path}")
-        return
-    
-    for r in recipes_data:
-        # Verificar si la receta ya existe por su nombre
-        cursor.execute("SELECT id FROM recipes WHERE name = ?", (r["name"],))
-        row = cursor.fetchone()
-        
-        if not row:
-            cursor.execute(
-                "INSERT INTO recipes (name, instructions, meal_type, diet_tags) VALUES (?, ?, ?, ?)",
-                (r["name"], r["instructions"], r["meal_type"], r["diet_tags"])
-            )
-            recipe_id = cursor.lastrowid
-            for ing_name, qty, unit in r["ingredients"]:
-                cursor.execute(
-                    "INSERT INTO recipe_ingredients (recipe_id, ingredient_name, quantity, unit) VALUES (?, ?, ?, ?)",
-                    (recipe_id, ing_name.lower().strip(), qty, unit)
-                )
-            
-    conn.commit()
 
 def db_get_inventory() -> List[Dict[str, Any]]:
     conn = get_connection()
