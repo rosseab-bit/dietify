@@ -22,12 +22,17 @@ El sistema cuenta con una interfaz web interactiva desarrollada en **Streamlit**
 
 ```text
 dietify/
-├── iniciar.bat       # Script de ejecución rápida automatizada (Windows)
-├── app.py            # Aplicación web principal en Streamlit
-├── core/             # Lógica del motor de reglas y base de datos
-├── dietify.py        # Script unificado CLI (Legacy)
-├── requirements.txt  # Dependencias del proyecto
-└── README.md         # Documentación de uso
+├── dietify.db           (Tu base de datos SQLite)
+├── dietify.py           (Punto de entrada CLI)
+├── app.py               (Punto de entrada Web / HTTP)
+├── core/
+│   ├── __init__.py
+│   ├── db.py            (Lógica de base de datos)
+│   └── engine.py        (Motor de inferencia y reglas)
+└── ui/
+    ├── __init__.py
+    ├── sidebar.py       (Componente del panel lateral)
+    └── views.py         (Componentes de pestañas y renderizado)
 ```
 
 ---
