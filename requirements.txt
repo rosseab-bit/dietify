@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 altair==6.1.0
 anyio==4.13.0
 attrs==23.2.0
@@ -126,3 +127,7 @@ wheel==0.42.0
 xdg==5
 #xkit==0.0.0
 zipp==1.0.0
+=======
+experta>=1.9.4
+streamlit>=1.20.0
+>>>>>>> 919a125513c3fa9c39447435a84dfb118dbc5766
