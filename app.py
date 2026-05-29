@@ -214,13 +214,17 @@ with tab_recomendar:
                 st.error("No hay recetas cargadas en el catálogo. Por favor agrégalas primero.")
             else:
                 with st.spinner("El motor de reglas de Experta está analizando tu perfil nutricional y despensa..."):
-                    eligible = run_expert_system(
+                    results = run_expert_system(
                         diet_type=diet_type,
                         constraints=constraints if diet_type == "medical" else [],
                         available_ingredients=avail_names,
                         all_recipes=all_recipes
                     )
-                    plan = plan_menus(eligible, target, all_recipes, selected_meals=selected_meals)
+                    
+                    eligible_recipes = results["eligible"]
+                    excluded_recipes = results["excluded"] 
+                    
+                    plan = plan_menus(eligible_recipes, target, all_recipes, selected_meals=selected_meals)
                 
                 st.success("🎉 ¡Menú generado exitosamente!")
                 
@@ -233,32 +237,37 @@ with tab_recomendar:
                             recipe = rec_data["recipe"]
                             status = rec_data["status"]
                             missing = rec_data["missing_ingredients"]
+                            reason_ia = rec_data.get("reason", "Apta para tu perfil actual.")
                             
                             badge_style = meal
                             meal_es = {"breakfast": "DESAYUNO", "lunch": "ALMUERZO", "dinner": "CENA", "snack": "MERIENDA"}.get(meal)
                             
-                            card_class = "recipe-card" if status == "exact" else "recipe-card-near"
+                            # Configuración de estilos según el estado para Modo Oscuro
+                            border_color = "#4CAF50" if status == "exact" else "#ff9800"
                             status_html = '<span style="color:#4CAF50; font-weight:bold;">✓ EXACTO</span>' if status == "exact" else f'<span style="color:#ff9800; font-weight:bold;">✗ CASI COMPLETO</span>'
                             
                             st.markdown(f"""
-                            <div class="{card_class}">
-                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                                    <span class="meal-badge-{badge_style}">{meal_es}</span>
-                                    <span>Estado: {status_html}</span>
+                                <div style="background-color: #1e222b; color: #f0f2f6; padding: 20px; border-radius: 12px; margin-bottom: 20px; border-left: 5px solid {border_color}; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+                                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                                        <span class="meal-badge-{badge_style}">{meal_es}</span>
+                                        <span style="color: #a3a8b4; font-size: 0.9em;">Estado: {status_html}</span>
+                                    </div>
+                                    <h3 style="margin-top:5px; margin-bottom:10px; color: #ffffff !important; font-weight: bold;">{recipe['name']}</h3>
+                                    <p style="color: #e0e4ed; margin-bottom: 6px;"><strong>Dietas:</strong> <span style="color: #4CAF50;">{", ".join(recipe['diet_tags'])}</span></p>
+                                    <p style="color: #a3a8b4; font-style: italic; margin-bottom: 12px; font-size: 0.95em; background-color: #252a36; padding: 8px 12px; border-radius: 6px;">
+                                        💡 <strong>Criterio de IA:</strong> {reason_ia}
+                                    </p>
+                                    <p style="color: #cbd0dc; line-height: 1.5;"><strong>Instrucciones:</strong> {recipe['instructions']}</p>
                                 </div>
-                                <h3 style="margin-top:5px; margin-bottom:10px;">{recipe['name']}</h3>
-                                <p><strong>Dietas:</strong> {", ".join(recipe['diet_tags'])}</p>
-                                <p><strong>Instrucciones:</strong> {recipe['instructions']}</p>
-                            </div>
-                            """, unsafe_allow_html=True)
+                                """, unsafe_allow_html=True)
                             
                             # Mostrar ingredientes
                             with st.expander(f"Ver ingredientes para {recipe['name']}"):
                                 for ing in recipe["ingredients"]:
                                     st.write(f"- **{ing['ingredient_name'].capitalize()}**: {ing['quantity']} {ing['unit']}")
                                 if status == "near" and missing:
-                                    st.markdown(f"⚠️ **Falta comprar:** <span style='color:#ff9800;'>{', '.join(missing)}</span>", unsafe_allow_html=True)
-                            st.markdown("<hr>", unsafe_allow_html=True)
+                                    st.markdown(f"⚠️ **Falta comprar:** <span style='color:#ff9800; font-weight:bold;'>{', '.join(missing)}</span>", unsafe_allow_html=True)
+                            st.markdown("<hr style='border-color: #2e3440;'>", unsafe_allow_html=True)
                 else:
                     # Semanal
                     for day_plan in plan["week_menu"]:
@@ -272,6 +281,7 @@ with tab_recomendar:
                                     recipe = rec_data["recipe"]
                                     status = rec_data["status"]
                                     missing = rec_data["missing_ingredients"]
+                                    reason_ia = rec_data.get("reason", "Apta para tu perfil actual.")
                                     
                                     meal_es = {"breakfast": "Desayuno", "lunch": "Almuerzo", "dinner": "Cena", "snack": "Merienda"}.get(meal)
                                     status_icon = "🟢" if status == "exact" else "🟡"
@@ -279,14 +289,22 @@ with tab_recomendar:
                                     st.markdown(f"**{meal_es}**")
                                     st.markdown(f"**{recipe['name']}**")
                                     st.caption(f"{status_icon} {'Exacto' if status == 'exact' else 'Casi completo'}")
+                                    
+                                    # RENDERIZADO DE REASON EN LA VISTA SEMANAL
+                                    st.caption(f"💡 *{reason_ia}*")
+                                    
                                     if status == "near" and missing:
-                                        st.caption(f"Falta: {', '.join(missing)}")
+                                        st.caption(f"⚠️ Falta: {', '.join(missing)}")
                                     with st.expander("Ver preparación"):
                                         st.write(recipe["instructions"])
                         st.markdown("---")
+                if excluded_recipes:
+                        with st.expander("🔎 Ver reporte del Sistema Experto (Recetas Excluidas)"):
+                            for exc in excluded_recipes:
+                                st.write(f"❌ **{exc['name']}**: {exc['reason']}")
         else:
             st.info("Configura las opciones en el panel izquierdo y haz clic en 'Generar Menú' para visualizar tu plan de alimentación.")
-
+    
 # ==========================================
 # PESTAÑA 2: INVENTARIO
 # ==========================================
