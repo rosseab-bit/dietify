@@ -29,7 +29,12 @@ class AvailableSet(Fact):
     pass
 
 class EligibleRecipe(Fact):
-    # fields: id, name, meal_type, status ("exact" or "near"), missing_ingredients (frozenset)
+    # fields: id, name, meal_type, status ("exact" or "near"),
+    # missing_ingredients (frozenset), reason
+    pass
+
+class ExcludedRecipe(Fact):
+    # fields: id, name, meal_type, reason
     pass
 
 class DietRecommenderEngine(KnowledgeEngine):
