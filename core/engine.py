@@ -165,26 +165,36 @@ def run_expert_system(diet_type: str, constraints: List[str], available_ingredie
     engine.run()
     
     eligible, excluded = [], []
-    for fact_id, fact in engine.facts.items():
+    
+    # Iteramos de forma segura sobre los valores de la memoria de trabajo
+    for fact in engine.facts.values():
         if isinstance(fact, EligibleRecipe):
-            original = next((r for r in all_recipes if r["id"] == fact["id"]), None)
+            fact_id = fact.get("id")
+            original = next((r for r in all_recipes if r["id"] == fact_id), None)
             if original:
                 eligible.append({
                     "recipe": original,
-                    "status": fact["status"],
-                    "missing_ingredients": list(fact["missing_ingredients"]),
+                    "status": fact.get("status"),
+                    "missing_ingredients": list(fact.get("missing_ingredients", [])),
                     "reason": fact.get("reason", "")
                 })
         elif isinstance(fact, ExcludedRecipe):
+            # Tarea 3: Recolectamos la estructura unificada incluyendo el ID
             excluded.append({
+                "id": fact.get("id"),
                 "name": fact.get("name"),
                 "reason": fact.get("reason")
             })
                 
+    # Ordenamos: primero las "exact" (0 faltantes), luego por cantidad de faltantes
     eligible.sort(key=lambda x: (0 if x["status"] == "exact" else len(x["missing_ingredients"])))
+    
     return {"eligible": eligible, "excluded": excluded}
 
 def plan_menus(eligible_recipes: List[Dict[str, Any]], target: str, all_recipes: List[Dict[str, Any]], selected_meals: Optional[List[str]] = None) -> Dict[str, Any]:
+    if isinstance(eligible_recipes, dict) and "eligible" in eligible_recipes:
+        eligible_recipes = eligible_recipes["eligible"]
+    
     if selected_meals is None:
         selected_meals = ["breakfast", "lunch", "dinner"]
         
